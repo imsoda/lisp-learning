@@ -44,7 +44,19 @@
 
 (defun GPS (state goals &optional (*ops* *ops*))
   "General Problem Solver: achieve all goals using *op*."
-  (remove-if #'atom (achieve-all (cons '(start) state) goals nil)))
+  (find-all-if #'action-p 
+	       (achieve-all (cons '(start) state) goals nil)))
+
+(defun fake-GPS (state goals &optional (*ops* *ops*))
+  (achieve-all (cons '(start) state) goals nil))
+
+(defun find-all-if (test sequence)
+  (find-all 'dummy sequence
+	    :test #'(lambda (dummy elt) (funcall test elt))))
+
+(defun action-p (x)
+  "Is x something that is (start) or (executing ...)?"
+  (or (equal x '(start)) (executing-p x)))
 
 (defun achieve-all (state goals goal-stack)
   "Achieve each goal and make sure they still hold at the end."
@@ -110,3 +122,43 @@
   (convert-op
    (make-op :action action :preconds preconds
 	    :add-list add-list :del-list del-list)))
+
+
+;;;The maze problem starts here.
+(defun make-maze-ops (pair)
+  "Make maze ops in both directions."
+  (list (make-maze-op (first pair) (second pair))
+	(make-maze-op (second pair) (first pair))))
+
+(defun make-maze-op (here there)
+  "Make an operator to move between two places."
+  (op `(move from ,here to ,there)
+      :preconds `((at ,here))
+      :add-list `((at ,there))
+      :del-list `((at ,here))))
+
+
+;;;The Blocks World Domain Problem starts here.
+(defun make-block-ops (blocks)
+  (let ((ops nil))
+    (dolist (a blocks)
+      (dolist (b blocks)
+	(unless (equal a b)
+	  (dolist (c blocks)
+	    (unless (or (equal c a) (equal c b))
+	      (push (move-op a b c) ops)))
+	  (push (move-op a 'table b) ops)
+	  (push (move-op a b 'table) ops))))
+    ops))
+
+(defun move-op (a b c)
+  "Make an operator to move A from B to C."
+  (op `(move ,a from ,b to ,c)
+      :preconds `((space on ,a) (space on ,c) (,a on ,b))
+      :add-list (move-ons a b c)
+      :del-list (move-ons a c b)))
+
+(defun move-ons (a b c)
+  (if (eq b 'table)
+      `((,a on ,c))
+      `((,a on ,c) (space on ,b))))
